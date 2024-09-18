@@ -177,7 +177,7 @@ def show_deadlines(chat_id, token):
             for course_assignments in assignments_data['courses']:
                 if 'assignments' in course_assignments:
                     for assignment in course_assignments['assignments']:
-                        due_date = assignment['duedate']
+                        due_date = assignment['duedate']    
                         assignment_name = assignment['name'].lower()
 
                         if due_date >= current_timestamp and not any(term in assignment_name for term in ['midterm', 'endterm']):
@@ -223,6 +223,7 @@ def handle_message(message):
             user_token = get_token(message.from_user.id)
             if user_token:
                 bot.send_message(chat_id, "Just a second...")
+                bot.delete_message(chat_id, message.chat_id)
                 show_deadlines(chat_id, user_token)
             else:
                 bot.send_message(chat_id, 'Please provide a token in a private chat first.')
@@ -237,6 +238,7 @@ def handle_message(message):
         if user_id:
             store_token(chat_id, first_name, text)  
             bot.send_message(chat_id, "Thank you! Token stored. ")
+            bot.delete_message(chat_id, message.message_id)
             main_menu(message)
         else:
             bot.send_message(chat_id, "Invalid token. Please try again.")

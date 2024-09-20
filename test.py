@@ -273,7 +273,7 @@ def handle_message(message):
             bot.send_message(chat_id, 'What would you like to do?', reply_markup=profile_options())
         else:
             bot.send_message(chat_id, 'No token found. Please provide a token first.')
-    elif text == 'See deadlines':
+    elif text == 'See deadlines' or text == '/deadlines':
         token = get_token(chat_id)
         if token:
             show_deadlines(chat_id, token)

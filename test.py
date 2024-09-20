@@ -12,7 +12,7 @@ BOT_TOKEN = os.getenv('TELEGRAM_API_TOKEN')
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # Moodle API request URL
-MOODLE_URL = 'https://moodle.astanait.edu.kz/webservice/rest/server.php'
+MOODLE_URL = os.getenv('REQUEST_URL') 
 
 # DataBase model
 def create_db():
@@ -99,6 +99,7 @@ def modify_token(message):
     else:
         bot.send_message(chat_id, "Invalid token. Please try again.")
 
+#Verifuy token
 def verify_security_key(token):
     params = {
         'wstoken': token,
@@ -116,6 +117,7 @@ def verify_security_key(token):
         print(f"An error occurred while verifying the security key: {e}")
         return None
 
+#Get course from Moodle API
 def get_courses(token, user_id):
     params = {
         'wstoken': token,
@@ -131,6 +133,7 @@ def get_courses(token, user_id):
         print(f"An error occurred while retrieving courses: {e}")
         return []
 
+#Get assignments from Moodle API 
 def get_assignments(token, course_id):
     params = {
         'wstoken': token,
@@ -146,11 +149,23 @@ def get_assignments(token, course_id):
         print(f"An error occurred while retrieving assignments: {e}")
         return {}
 
-def days_remaining(due_date):
+#Calculation of of the remaining time 
+def time_remaining(due_date):
     due_date_obj = datetime.fromtimestamp(due_date)
-    remaining_days = (due_date_obj - datetime.now()).days
-    return remaining_days
+    
+    remaining_time = due_date_obj - datetime.now()
+    
+    remaining_days = remaining_time.days
+    remaining_seconds = remaining_time.seconds
+    remaining_hours = remaining_seconds // 3600
+    remaining_minutes = (remaining_seconds % 3600) // 60
 
+    if remaining_days < 1:
+        return f"{remaining_hours} hours, {remaining_minutes} minutes"
+    
+    return f"{remaining_days} days, {remaining_hours} hours, {remaining_minutes} minutes"
+
+#Show the deadlines
 def show_deadlines(chat_id, token):
     user_id = verify_security_key(token)
     if user_id is None:
@@ -177,40 +192,48 @@ def show_deadlines(chat_id, token):
             for course_assignments in assignments_data['courses']:
                 if 'assignments' in course_assignments:
                     for assignment in course_assignments['assignments']:
-                        due_date = assignment['duedate']    
+                        due_date = assignment['duedate']
                         assignment_name = assignment['name'].lower()
 
                         if due_date >= current_timestamp and not any(term in assignment_name for term in ['midterm', 'endterm']):
-                            remaining_days = days_remaining(due_date)
+                            time_left = time_remaining(due_date)
                             upcoming_assignments_by_course[course_name].append({
                                 'name': assignment['name'],
                                 'due_date': datetime.fromtimestamp(due_date).strftime('%Y-%m-%d %H:%M:%S'),
-                                'days_remaining': remaining_days
+                                'time_remaining': time_left
                             })
 
     message = ""
     course_index = 1 
     for course_name, assignments in upcoming_assignments_by_course.items():
         if assignments:
-            message += f"\n{course_index}. {course_name}\n"  # Numbering for each course
+            message += f"\n{course_index}. {course_name}\n"  
             message += "\n"
             for assignment in assignments:
-                message += f"   {assignment['name']}\n"
-                message += f"   Due Date: {assignment['due_date']}\n"
-                message += f"   Days Remaining: {assignment['days_remaining']} days\n"
+                message += f"   📝{assignment['name']}\n"
+                message += f"   📅Due Date: {assignment['due_date']}\n"
+                message += f"   ⏳Time Remaining: {assignment['time_remaining']}\n"
             course_index += 1
 
     if message:
         bot.send_message(chat_id, message)
     else:
         bot.send_message(chat_id, "No upcoming assignments found.")
+def for_users(message):
+    chat_id = message.chat.id
+    bot.send_message(chat_id, 'Technical works! Please wait.')
+
 
 # Start the bot
 @bot.message_handler(commands=['start'])
 def start(message):
     chat_id = message.chat.id
-    bot.send_message(chat_id, "Welcome! Please provide your Moodle mobile web service token to proceed:")
-
+    text = "[here](https://moodle.astanait.edu.kz/user/managetoken.php)"
+    
+    bot.send_message(chat_id, 
+                     f"Welcome\\! Please provide your Moodle mobile web service token to proceed, you can get it {text}:", 
+                     parse_mode='MarkdownV2')
+    
 # Handle the user input and store the token
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
@@ -219,14 +242,13 @@ def handle_message(message):
 
     if message.chat.type in ['group', 'supergroup']:
 
-        if text == '/deadlines':
+        if text == '/deadlines@assign_alert_bot':
             user_token = get_token(message.from_user.id)
             if user_token:
-                bot.send_message(chat_id, "Just a second...")
-                bot.delete_message(chat_id, message.chat_id)
                 show_deadlines(chat_id, user_token)
             else:
-                bot.send_message(chat_id, 'Please provide a token in a private chat first.')
+                text = "[here](https://moodle.astanait.edu.kz/user/managetoken.php)"
+                bot.send_message(chat_id, f'Please provide a token in a private chat first, you can get it {text}', parse_mode='MarkdownV2')
         return
 
 
@@ -253,7 +275,6 @@ def handle_message(message):
     elif text == 'See deadlines':
         token = get_token(chat_id)
         if token:
-            bot.send_message(chat_id, "Just a second...")
             show_deadlines(chat_id, token)
         else:
             bot.send_message(chat_id, 'Please provide a token to see deadlines.')
@@ -273,5 +294,7 @@ def handle_callback_query(call):
     elif call.data == "exit":
         bot.send_message(chat_id, "You have exited the profile settings.")
         main_menu(call.message)  
+
+
 
 bot.polling(non_stop=True)

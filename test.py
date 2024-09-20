@@ -5,6 +5,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 import os
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
 
 # Telegram bot token
 load_dotenv()
@@ -296,5 +297,5 @@ def handle_callback_query(call):
         main_menu(call.message)  
 
 
-
-bot.polling(non_stop=True)
+executor = ThreadPoolExecutor(max_workers=1)
+executor.submit(lambda: bot.polling(non_stop=True))

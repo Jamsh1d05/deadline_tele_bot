@@ -243,7 +243,7 @@ def handle_message(message):
 
     if message.chat.type in ['group', 'supergroup']:
 
-        if text == '/deadlines@assign_alert_bot':
+        if text == '/deadlines@assign_alert_bot' or text == '/deadlines':
             user_token = get_token(message.from_user.id)
             if user_token:
                 show_deadlines(chat_id, user_token)

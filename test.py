@@ -235,15 +235,14 @@ def start(message):
         bot.send_message(chat_id, f"Welcome! Please provide your Moodle token. You can get it {text}:", parse_mode='MarkdownV2')
         main_menu(message)
 
-
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     chat_id = message.chat.id
     text = message.text
 
+    # Handling group messages
     if message.chat.type in ['group', 'supergroup']:
-
-        if text == '/deadlines@assign_alert_bot' or text == '/deadlines':
+        if text in ['/deadlines@assign_alert_bot', '/deadlines']:
             user_token = get_token(message.from_user.id)
             if user_token:
                 show_deadlines(chat_id, user_token)
@@ -252,22 +251,26 @@ def handle_message(message):
                 bot.send_message(chat_id, f'Please provide a token in a private chat first, you can get it {text}', parse_mode='MarkdownV2')
         return
 
-
-    if len(text) == 32: 
-        user_id = verify_security_key(text) 
-        user = message.from_user
-        first_name = user.first_name or "unknown"
-
-        if user_id:
-            store_token(chat_id, first_name, text)  
-            bot.send_message(chat_id, "Thank you! Token stored. ")
-            bot.delete_message(chat_id, message.message_id)
-            main_menu(message)
-        else:
-            bot.send_message(chat_id, "Invalid token. Please try again.")
+    # Handling private chat messages
+    user_token = get_token(message.from_user.id)
+    if user_token:
+        # User is already registered, show main menu
+        main_menu(message)
     else:
-        bot.send_message(chat_id, 'Token is invalid')
+        if len(text) == 32:
+            user_id = verify_security_key(text)
+            first_name = message.from_user.first_name or "unknown"
 
+            if user_id:
+                # Store the token
+                store_token(chat_id, first_name, text)
+                bot.send_message(chat_id, "Thank you! Token stored.")
+                bot.delete_message(chat_id, message.message_id)
+                main_menu(message)  # Show the main menu after storing the token
+            else:
+                bot.send_message(chat_id, "Invalid token. Please try again.")
+        else:
+            bot.send_message(chat_id, 'Please provide a valid token.')
 
 
 @bot.message_handler(func=lambda message: message.text == '👤Profile')

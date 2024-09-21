@@ -63,17 +63,23 @@ def delete_token(chat_id):
     conn.commit()
     conn.close()
 
+
 def modify_token(message):
     chat_id = message.chat.id
     new_token = message.text
 
-    user_id = verify_security_key(new_token)
-    if user_id:
-        first_name = message.from_user.first_name or "unknown"
-        store_token(chat_id, first_name, new_token)  
-        bot.send_message(chat_id, "Your token has been updated.")
-    else:
-        bot.send_message(chat_id, "Invalid token. Please try again.")
+    # Validate the new token (optional)
+    if verify_security_key(new_token) is None:
+        bot.send_message(chat_id, "The token you provided is invalid. Please try again.")
+        return
+    
+    # Update the token in the database
+    first_name = message.chat.first_name
+    store_token(chat_id, first_name, new_token)
+    
+    bot.send_message(chat_id, "Your token has been updated successfully.")
+    main_menu(message) 
+
 
 def is_user_registered(chat_id):
     conn = get_db_connection()
@@ -87,6 +93,7 @@ def is_user_registered(chat_id):
 def main_menu(message):
     menu_btn = types.ReplyKeyboardMarkup(resize_keyboard=True)
     menu_btn.add(types.KeyboardButton('See deadlines'), types.KeyboardButton('👤Profile'), types.KeyboardButton('🔑Admin'))
+    bot.send_message(message.chat.id, 'Choose an action', reply_markup=menu_btn)
 
 # Verify Moodle token
 def verify_security_key(token):
@@ -235,62 +242,6 @@ def start(message):
         bot.send_message(chat_id, f"Welcome! Please provide your Moodle token. You can get it {text}:", parse_mode='MarkdownV2')
         main_menu(message)
 
-@bot.message_handler(func=lambda message: True)
-def handle_message(message):
-    chat_id = message.chat.id
-    text = message.text
-
-    # Handling group messages
-    if message.chat.type in ['group', 'supergroup']:
-        if text in ['/deadlines@assign_alert_bot', '/deadlines']:
-            user_token = get_token(message.from_user.id)
-            if user_token:
-                show_deadlines(chat_id, user_token)
-            else:
-                text = "[here](https://moodle.astanait.edu.kz/user/managetoken.php)"
-                bot.send_message(chat_id, f'Please provide a token in a private chat first, you can get it {text}', parse_mode='MarkdownV2')
-        return
-
-    # Handling private chat messages
-    user_token = get_token(message.from_user.id)
-    if user_token:
-        # User is already registered, show main menu
-        main_menu(message)
-    else:
-        if len(text) == 32:
-            user_id = verify_security_key(text)
-            first_name = message.from_user.first_name or "unknown"
-
-            if user_id:
-                # Store the token
-                store_token(chat_id, first_name, text)
-                bot.send_message(chat_id, "Thank you! Token stored.")
-                bot.delete_message(chat_id, message.message_id)
-                main_menu(message)  # Show the main menu after storing the token
-            else:
-                bot.send_message(chat_id, "Invalid token. Please try again.")
-        else:
-            bot.send_message(chat_id, 'Please provide a valid token.')
-
-
-@bot.message_handler(func=lambda message: message.text == '👤Profile')
-def profile(message):
-    chat_id = message.chat.id
-    token = get_token(chat_id)
-    if token:
-        bot.send_message(chat_id, f"Your stored token: {token}")
-        bot.send_message(chat_id, "What would you like to do?", reply_markup=profile_options())
-    else:
-        bot.send_message(chat_id, "No token found. Please provide a token first.")
-
-@bot.message_handler(func=lambda message: message.text == 'See deadlines')
-def deadlines(message):
-    chat_id = message.chat.id
-    token = get_token(chat_id)
-    if token:
-        show_deadlines(chat_id, token)
-    else:
-        bot.send_message(chat_id, "Please provide a token to see deadlines.")
 
 @bot.message_handler(func=lambda message: message.text == '🔑Admin')
 def admin_panel(message):
@@ -312,10 +263,56 @@ def send_users_data(message):
     else:
         bot.send_message(chat_id, "Users data file not found.")
 
-
 @bot.message_handler(func=lambda message: message.text == 'Exit')
-def exit_adm(message):
+def send_users_data(message):
     main_menu(message)
+
+
+
+@bot.message_handler(func=lambda message: True)
+def handle_message(message):
+    chat_id = message.chat.id
+    text = message.text
+
+    if message.chat.type in ['group', 'supergroup']:
+
+        if text == '/deadlines@assign_deadlines_bot' or text == '/deadlines':
+            user_token = get_token(message.from_user.id)
+            if user_token:
+                show_deadlines(chat_id, user_token)
+            else:
+                text = "[here](https://moodle.astanait.edu.kz/user/managetoken.php)"
+                bot.send_message(chat_id, f'Please provide a token in a private chat first, you can get it {text}', parse_mode='MarkdownV2')
+        return
+
+
+    if len(text) == 32: 
+        user_id = verify_security_key(text) 
+        user = message.from_user
+        first_name = user.first_name or "unknown"
+
+        if user_id:
+            store_token(chat_id, first_name, text)  
+            bot.send_message(chat_id, "Thank you! Token stored. ")
+            bot.delete_message(chat_id, message.message_id)
+            main_menu(message)
+        else:
+            bot.send_message(chat_id, "Invalid token. Please try again.")
+    elif text == '👤Profile':
+        token = get_token(chat_id)
+
+        if token:
+            bot.send_message(chat_id, f'Your stored token: {token}')
+            bot.send_message(chat_id, 'What would you like to do?', reply_markup=profile_options())
+        else:
+            bot.send_message(chat_id, 'No token found. Please provide a token first.')
+    elif text == 'See deadlines' or text == '/deadlines':
+        token = get_token(chat_id)
+        if token:
+            show_deadlines(chat_id, token)
+        else:
+            bot.send_message(chat_id, 'Please provide a token to see deadlines.')
+
 
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callback_query(call):

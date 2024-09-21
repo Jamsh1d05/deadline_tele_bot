@@ -87,7 +87,6 @@ def is_user_registered(chat_id):
 def main_menu(message):
     menu_btn = types.ReplyKeyboardMarkup(resize_keyboard=True)
     menu_btn.add(types.KeyboardButton('See deadlines'), types.KeyboardButton('👤Profile'), types.KeyboardButton('🔑Admin'))
-    bot.send_message(message.chat.id, 'Choose an action', reply_markup=menu_btn)
 
 # Verify Moodle token
 def verify_security_key(token):

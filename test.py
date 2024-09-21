@@ -5,23 +5,22 @@ from datetime import datetime
 from dotenv import load_dotenv
 import os
 import sqlite3
-from concurrent.futures import ThreadPoolExecutor
 
-# Telegram bot token
+# Load environment variables
 load_dotenv()
-BOT_TOKEN = os.getenv('TELEGRAM_API_TOKEN')
+BOT_TOKEN = os.getenv('TEL_API_TOKEN')
+MOODLE_URL = os.getenv('REQUEST_URL')
+ADMIN_ID = int(os.getenv('ADMIN_ID'))
+
+# Initialize bot
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Moodle API request URL
-MOODLE_URL = os.getenv('REQUEST_URL') 
-
-# DataBase model
+# Create and manage the SQLite database
 def create_db():
     conn = sqlite3.connect('users.db')
     cursor = conn.cursor()
-    
 
-    # Create a table
+    # Create a table for storing user tokens
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS user_tokens (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -37,57 +36,33 @@ def create_db():
 create_db()
 
 def get_db_connection():
-    conn = sqlite3.connect('users.db')
-    return conn
+    return sqlite3.connect('users.db')
 
 def store_token(chat_id, first_name, token):
     conn = get_db_connection()
     cursor = conn.cursor()
-    
     cursor.execute('''
     INSERT OR REPLACE INTO user_tokens (chat_id, first_name, token)
     VALUES (?, ?, ?)
     ''', (chat_id, first_name, token))
-    
     conn.commit()
     conn.close()
 
 def get_token(chat_id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    
     cursor.execute('SELECT token FROM user_tokens WHERE chat_id = ?', (chat_id,))
     result = cursor.fetchone()
-    
     conn.close()
-    
-    if result:
-        return result[0]
-    return None
+    return result[0] if result else None
 
-def main_menu(message):
-    menu_btn = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    menu_btn.add(types.KeyboardButton('See deadlines'), types.KeyboardButton('👤Profile'))
-    bot.send_message(message.chat.id, 'Choose an action', reply_markup=menu_btn)
-
-def profile_options():
-    markup = types.InlineKeyboardMarkup()
-    delete_button = types.InlineKeyboardButton("Delete", callback_data="delete_token_text")
-    modify_button = types.InlineKeyboardButton("Modify", callback_data="modify_token_text")
-    exit_button = types.InlineKeyboardButton("Exit", callback_data="exit")
-    markup.add(delete_button, modify_button, exit_button)
-    return markup
-
-# Function to delete a token
 def delete_token(chat_id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    
     cursor.execute('DELETE FROM user_tokens WHERE chat_id = ?', (chat_id,))
     conn.commit()
     conn.close()
 
-# Function to modify a token
 def modify_token(message):
     chat_id = message.chat.id
     new_token = message.text
@@ -100,7 +75,21 @@ def modify_token(message):
     else:
         bot.send_message(chat_id, "Invalid token. Please try again.")
 
-#Verifuy token
+def is_user_registered(chat_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM user_tokens WHERE chat_id = ?', (chat_id,))
+    user = cursor.fetchone()
+    conn.close()
+    return user is not None
+
+# Show the main menu
+def main_menu(message):
+    menu_btn = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    menu_btn.add(types.KeyboardButton('See deadlines'), types.KeyboardButton('👤Profile'), types.KeyboardButton('🔑Admin'))
+    bot.send_message(message.chat.id, 'Choose an action', reply_markup=menu_btn)
+
+# Verify Moodle token
 def verify_security_key(token):
     params = {
         'wstoken': token,
@@ -115,10 +104,10 @@ def verify_security_key(token):
             return data['userid']
         return None
     except requests.exceptions.RequestException as e:
-        print(f"An error occurred while verifying the security key: {e}")
+        print(f"Error verifying token: {e}")
         return None
 
-#Get course from Moodle API
+# Get deadlines and assignments
 def get_courses(token, user_id):
     params = {
         'wstoken': token,
@@ -131,10 +120,9 @@ def get_courses(token, user_id):
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        print(f"An error occurred while retrieving courses: {e}")
+        print(f"Error retrieving courses: {e}")
         return []
 
-#Get assignments from Moodle API 
 def get_assignments(token, course_id):
     params = {
         'wstoken': token,
@@ -147,7 +135,7 @@ def get_assignments(token, course_id):
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        print(f"An error occurred while retrieving assignments: {e}")
+        print(f"Error retrieving assignments: {e}")
         return {}
 
 #Calculation of of the remaining time 
@@ -220,82 +208,90 @@ def show_deadlines(chat_id, token):
         bot.send_message(chat_id, message)
     else:
         bot.send_message(chat_id, "No upcoming assignments found.")
-def for_users(message):
-    chat_id = message.chat.id
-    bot.send_message(chat_id, 'Technical works! Please wait.')
 
+# Profile options
+def profile_options():
+    markup = types.InlineKeyboardMarkup()
+    delete_button = types.InlineKeyboardButton("Delete", callback_data="delete_token_text")
+    modify_button = types.InlineKeyboardButton("Modify", callback_data="modify_token_text")
+    exit_button = types.InlineKeyboardButton("Exit", callback_data="exit")
+    markup.add(delete_button, modify_button, exit_button)
+    return markup
 
-# Start the bot
+# Admin panel
+def adm_btn(message):
+    adm_btn = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    adm_btn.add(types.KeyboardButton('Users data'), types.KeyboardButton('Exit'))
+    bot.send_message(message.chat.id, 'Choose an action', reply_markup=adm_btn)
+
+# Telegram Handlers
+
 @bot.message_handler(commands=['start'])
 def start(message):
     chat_id = message.chat.id
-    text = "[here](https://moodle.astanait.edu.kz/user/managetoken.php)"
-    
-    bot.send_message(chat_id, 
-                     f"Welcome\\! Please provide your Moodle mobile web service token to proceed, you can get it {text}:", 
-                     parse_mode='MarkdownV2')
-    
-# Handle the user input and store the token
-@bot.message_handler(func=lambda message: True)
-def handle_message(message):
+    if is_user_registered(chat_id):
+        main_menu(message)
+    else:
+        text = "[here](https://moodle.astanait.edu.kz/user/managetoken.php)"
+        bot.send_message(chat_id, f"Welcome! Please provide your Moodle token. You can get it {text}:", parse_mode='MarkdownV2')
+        main_menu(message)
+
+@bot.message_handler(func=lambda message: message.text == '👤Profile')
+def profile(message):
     chat_id = message.chat.id
-    text = message.text
+    token = get_token(chat_id)
+    if token:
+        bot.send_message(chat_id, f"Your stored token: {token}")
+        bot.send_message(chat_id, "What would you like to do?", reply_markup=profile_options())
+    else:
+        bot.send_message(chat_id, "No token found. Please provide a token first.")
 
-    if message.chat.type in ['group', 'supergroup']:
+@bot.message_handler(func=lambda message: message.text == 'See deadlines')
+def deadlines(message):
+    chat_id = message.chat.id
+    token = get_token(chat_id)
+    if token:
+        show_deadlines(chat_id, token)
+    else:
+        bot.send_message(chat_id, "Please provide a token to see deadlines.")
 
-        if text == '/deadlines@assign_alert_bot' or text == '/deadlines':
-            user_token = get_token(message.from_user.id)
-            if user_token:
-                show_deadlines(chat_id, user_token)
-            else:
-                text = "[here](https://moodle.astanait.edu.kz/user/managetoken.php)"
-                bot.send_message(chat_id, f'Please provide a token in a private chat first, you can get it {text}', parse_mode='MarkdownV2')
-        return
+@bot.message_handler(func=lambda message: message.text == '🔑Admin')
+def admin_panel(message):
+    chat_id = message.chat.id
+    if chat_id == ADMIN_ID:
+        bot.send_message(chat_id, 'Assalamu aleykum boss!')
+        adm_btn(message)
+    else:
+        bot.send_message(chat_id, "You don't have admin access.")
+
+@bot.message_handler(func=lambda message: message.text == 'Users data')
+def send_users_data(message):
+    chat_id = message.chat.id
+    file_path = 'users.db'
+    
+    if os.path.exists(file_path):
+        with open(file_path, 'rb') as file:
+            bot.send_document(chat_id, file)
+    else:
+        bot.send_message(chat_id, "Users data file not found.")
 
 
-    if len(text) == 32: 
-        user_id = verify_security_key(text) 
-        user = message.from_user
-        first_name = user.first_name or "unknown"
-
-        if user_id:
-            store_token(chat_id, first_name, text)  
-            bot.send_message(chat_id, "Thank you! Token stored. ")
-            bot.delete_message(chat_id, message.message_id)
-            main_menu(message)
-        else:
-            bot.send_message(chat_id, "Invalid token. Please try again.")
-    elif text == '👤Profile':
-        token = get_token(chat_id)
-
-        if token:
-            bot.send_message(chat_id, f'Your stored token: {token}')
-            bot.send_message(chat_id, 'What would you like to do?', reply_markup=profile_options())
-        else:
-            bot.send_message(chat_id, 'No token found. Please provide a token first.')
-    elif text == 'See deadlines' or text == '/deadlines':
-        token = get_token(chat_id)
-        if token:
-            show_deadlines(chat_id, token)
-        else:
-            bot.send_message(chat_id, 'Please provide a token to see deadlines.')
+@bot.message_handler(func=lambda message: message.text == 'Exit')
+def exit_adm(message):
+    main_menu(message)
 
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callback_query(call):
     chat_id = call.message.chat.id
-
     if call.data == "delete_token_text":
         delete_token(chat_id)
         bot.send_message(chat_id, "Your token has been deleted.")
-    
     elif call.data == "modify_token_text":
         bot.send_message(chat_id, "Please provide your new token:")
         bot.register_next_step_handler(call.message, modify_token)
-
     elif call.data == "exit":
         bot.send_message(chat_id, "You have exited the profile settings.")
-        main_menu(call.message)  
+        main_menu(call.message)
 
-
-executor = ThreadPoolExecutor(max_workers=1)
-executor.submit(lambda: bot.polling(non_stop=True))
+# Polling to keep the bot running
+bot.polling(non_stop=True)

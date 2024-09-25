@@ -214,7 +214,7 @@ def show_deadlines(chat_id, token):
         bot.send_message(chat_id, message)
     else:
         bot.send_message(chat_id, "No upcoming assignments found.")
-
+        
 # Profile options
 def profile_options():
     markup = types.InlineKeyboardMarkup()

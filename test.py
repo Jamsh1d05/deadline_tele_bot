@@ -143,10 +143,13 @@ def store_group_chat_id(chat_id):
 # Show the main menu
 menu_btn = None 
 def main_menu(message):
-    global menu_btn
-    menu_btn = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    menu_btn.add(types.KeyboardButton('Deadlines'), types.KeyboardButton('Calculator'), types.KeyboardButton('👤Profile'), types.KeyboardButton('🔑Admin'))
-    bot.send_message(message.chat.id, 'Choose an action', reply_markup=menu_btn)
+    if message.chat.type == 'private':
+        global menu_btn
+        menu_btn = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        menu_btn.add(types.KeyboardButton('Deadlines'), types.KeyboardButton('Calculator'), types.KeyboardButton('👤Profile'), types.KeyboardButton('🔑Admin'))
+        bot.send_message(message.chat.id, 'Choose an action', reply_markup=menu_btn)
+    else:
+        bot.send_message(message.chat.id, 'Bot buttons are only available in private chat.')
 
 #Calculator options
 def calc_options(message):
@@ -412,11 +415,14 @@ def gpa_calc(message):
 #Sending updates
 @bot.message_handler(commands=['update'])
 def get_update(message):
-    global menu_btn  
-    if menu_btn is None:
-        bot.send_message(message.chat.id, 'Menu button is not yet initialized.')
+    if message.chat.type == 'private':
+        global menu_btn  
+        if menu_btn is None:
+            bot.send_message(message.chat.id, 'Menu button is not yet initialized.')
+        else:
+            bot.send_message(message.chat.id, 'Updates installed successfully!', reply_markup=menu_btn)
     else:
-        bot.send_message(message.chat.id, 'Updates installed successfully!', reply_markup=menu_btn)
+        bot.send_message(message.chat.id, 'Run the /update command in private chat!')
 
 
 @bot.message_handler(func=lambda message: message.text == '🔑Admin')

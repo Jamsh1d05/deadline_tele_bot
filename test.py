@@ -424,7 +424,6 @@ def get_update(message):
     else:
         bot.send_message(message.chat.id, 'Run the /update command in private chat!')
 
-
 @bot.message_handler(func=lambda message: message.text == '🔑Admin')
 def admin_panel(message):
     chat_id = message.chat.id

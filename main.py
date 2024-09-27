@@ -29,6 +29,14 @@ def create_db():
         token TEXT NOT NULL
     )
     ''')
+                  
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS group_chat (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        chat_id INTEGER NOT NULL UNIQUE
+    )
+
+    ''')
     
     conn.commit()
     conn.close()
@@ -89,12 +97,74 @@ def is_user_registered(chat_id):
     conn.close()
     return user is not None
 
-# Show the main menu
-def main_menu(message):
-    menu_btn = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    menu_btn.add(types.KeyboardButton('See deadlines'), types.KeyboardButton('👤Profile'), types.KeyboardButton('🔑Admin'))
-    bot.send_message(message.chat.id, 'Choose an action', reply_markup=menu_btn)
+def get_all_user_ids():
+    conn = sqlite3.connect('users.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT chat_id FROM user_tokens')
+    user_ids = cursor.fetchall()
+    
+    conn.close()
 
+    return [user_id[0] for user_id in user_ids]
+
+def get_all_group_chat_ids():
+    conn = sqlite3.connect('users.db')
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT chat_id FROM group_chat')
+    group_chat_ids = cursor.fetchall()
+
+    conn.close()
+
+    return [chat_id[0] for chat_id in group_chat_ids] 
+
+def store_group_chat_id(chat_id):
+    conn = sqlite3.connect('users.db')
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute('''
+        INSERT INTO group_chat (chat_id)
+        VALUES (?)
+        ''', (chat_id,))
+        conn.commit()
+        print(f"Group chat ID {chat_id} stored successfully.")
+    except sqlite3.IntegrityError:
+        print(f"Group chat ID {chat_id} already exists in the database.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+    finally:
+        conn.close()
+
+
+# Show the main menu
+menu_btn = None 
+def main_menu(message):
+    if message.chat.type == 'private':
+        global menu_btn
+        menu_btn = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        menu_btn.add(types.KeyboardButton('Deadlines'), types.KeyboardButton('Calculator'), types.KeyboardButton('👤Profile'), types.KeyboardButton('🔑Admin'))
+        bot.send_message(message.chat.id, 'Choose an action', reply_markup=menu_btn)
+    else:
+        bot.send_message(message.chat.id, 'Bot buttons are only available in private chat.')
+
+#Calculator options
+def calc_options(message):
+    info_message = (
+    "ℹ️ Выберите калькулятор\n\n"
+    "1️⃣ GPA calculator\n"
+    "GPA — это средний балл всех оценок за весь период обучения. "
+    "Калькулятор GPA — это инструмент, который вычисляет среднее значение всех ваших оценок за период обучения, помогая вам отслеживать академическую успеваемость. "
+    "Вы можете ввести свои предметы, кредиты и оценки, чтобы получать обновленный GPA каждый семестр.\n\n"
+    "2️⃣ Рассчитать баллы для стипендии\n"
+    "Данный калькулятор поможет узнать сколько процентов вам необходимо набрать на Final Exam."
+    "Достаточно отправить оценку за Mid/End-Term."
+)
+    calc_btn = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    calc_btn.add(types.KeyboardButton('Scholarship'), types.KeyboardButton('GPA'), types.KeyboardButton('Exit'))
+    bot.send_message(message.chat.id, info_message, reply_markup=calc_btn)
+    
 # Verify Moodle token
 def verify_security_key(token):
     params = {
@@ -215,6 +285,71 @@ def show_deadlines(chat_id, token):
     else:
         bot.send_message(chat_id, "No upcoming assignments found.")
         
+
+def scholarship_calculator(message):
+    bot.send_message(message.chat.id, "ℹ️Введите оценку за Register Mid-Term:")
+    bot.register_next_step_handler(message, get_first_attestation)
+
+def get_first_attestation(message):
+    if message.text == 'Exit':
+        main_menu(message)
+        return
+
+    try:
+        first_att = float(message.text)
+        if first_att < 0 or first_att > 100:
+            bot.send_message(message.chat.id, "Пожалуйста введите допустимую оценку от 0 до 100.")
+            return bot.register_next_step_handler(message, get_first_attestation)
+
+        bot.send_message(message.chat.id, "ℹ️Введите оценку за Register End-Term")
+        bot.register_next_step_handler(message, get_second_attestation, first_att)
+    except ValueError:
+        bot.send_message(message.chat.id, "Неверный ввод.Пожалуйста введите действительную оценку за Register Mid-Term: ")
+        bot.register_next_step_handler(message, get_first_attestation)
+
+def get_second_attestation(message, first_att):
+    if message.text == 'Exit':
+        main_menu(message)
+        return
+
+
+    try:
+        second_att = float(message.text)
+        if second_att < 0 or second_att > 100:
+            bot.send_message(message.chat.id, "Пожалуйста введите допустимую оценку от 0 до 100.")
+            return bot.register_next_step_handler(message, get_second_attestation, first_att)
+
+        calculate_scholarship(first_att, second_att, message)
+    except ValueError:
+        bot.send_message(message.chat.id, "Неверный ввод.Пожалуйста введите действительную оценку за Register End-Term:")
+        bot.register_next_step_handler(message, get_second_attestation, first_att)
+
+def calculate_scholarship(first_att, second_att, message):
+    current_grade = 0.3 * first_att + 0.3 * second_att
+
+    required_for_retake = max(50, (50 - current_grade) / 0.4)  
+    required_for_scholarship = max(50, (70 - current_grade) / 0.4)  
+    required_for_high_scholarship = max(50, (90 - current_grade) / 0.4)
+    grade_if_100_final = current_grade + 0.4 * 100
+
+    if required_for_high_scholarship > 100:
+        high_scholarship_message = "Невозможно"
+    else:
+        high_scholarship_message = f"{required_for_high_scholarship:.2f}%"
+
+    result_message = (
+        f"1️⃣ Не получить RETAKE или FX (>50): {required_for_retake:.2f}%\n"
+        f"2️⃣ Для сохранения стипендии (>70): {required_for_scholarship:.2f}%\n"
+        f"3️⃣ Для повышенной стипендии (>90): {high_scholarship_message:}\n"
+        f"4️⃣ Ваша итоговая оценка {grade_if_100_final:.2f}% если вы получите 100% на Final Exam"
+    )
+
+    bot.send_message(message.chat.id, result_message)
+
+
+
+
+
 # Profile options
 def profile_options():
     markup = types.InlineKeyboardMarkup()
@@ -227,7 +362,7 @@ def profile_options():
 # Admin panel
 def adm_btn(message):
     adm_btn = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    adm_btn.add(types.KeyboardButton('Users data'), types.KeyboardButton('Exit'))
+    adm_btn.add(types.KeyboardButton('Users data'), types.KeyboardButton('Broadcast Message'), types.KeyboardButton('Exit'))
     bot.send_message(message.chat.id, 'Choose an action', reply_markup=adm_btn)
 
 # Telegram Handlers
@@ -241,6 +376,55 @@ def start(message):
         text = "[here](https://moodle.astanait.edu.kz/user/managetoken.php)"
         bot.send_message(chat_id, f"Welcome! Please provide your Moodle token. You can get it {text}:", parse_mode='MarkdownV2')
         main_menu(message)
+
+
+
+
+def send_broadcast_message(message):
+    all_ids = get_all_group_chat_ids() 
+    message_text = message.text
+
+    for chat_id in all_ids:
+        try:
+            bot.send_message(chat_id, message_text) 
+        except Exception as e:
+            print(f"Failed to send message to {chat_id}: {e}")
+    
+    bot.send_message(message.chat.id, "Broadcast message sent successfully!")
+
+
+@bot.message_handler(func=lambda message: message.text == 'Broadcast Message', content_types=['text'])
+def handle_broadcast(message):
+    msg = bot.send_message(message.chat.id, "Please enter the message you want to broadcast:")
+    bot.register_next_step_handler(msg, send_broadcast_message)
+
+
+
+#Handler for Calculator
+@bot.message_handler(func=lambda message: message.text == 'Calculator')
+def calculator(message):
+    calc_options(message)
+    
+@bot.message_handler(func=lambda message: message.text == 'Scholarship')
+def scholar_calc(message):
+    scholarship_calculator(message)
+
+#logic for GPA calculation
+@bot.message_handler(func=lambda message: message.text == 'GPA')
+def gpa_calc(message):
+    bot.send_message(message.chat.id, 'В скором времени будет доступно!')
+
+#Sending updates
+@bot.message_handler(commands=['update'])
+def get_update(message):
+    if message.chat.type == 'private':
+        global menu_btn  
+        if menu_btn is None:
+            bot.send_message(message.chat.id, 'Menu button is not yet initialized.')
+        else:
+            bot.send_message(message.chat.id, 'Updates installed successfully!', reply_markup=menu_btn)
+    else:
+        bot.send_message(message.chat.id, 'Run the /update command in private chat!')
 
 
 @bot.message_handler(func=lambda message: message.text == '🔑Admin')
@@ -277,6 +461,8 @@ def handle_message(message):
     if message.chat.type in ['group', 'supergroup']:
 
         if text == '/deadlines@assign_deadlines_bot' or text == '/deadlines':
+            log_id = message.chat.id
+            store_group_chat_id(log_id)
             user_token = get_token(message.from_user.id)
             if user_token:
                 show_deadlines(chat_id, user_token)
@@ -306,7 +492,7 @@ def handle_message(message):
             bot.send_message(chat_id, 'What would you like to do?', reply_markup=profile_options())
         else:
             bot.send_message(chat_id, 'No token found. Please provide a token first.')
-    elif text == 'See deadlines' or text == '/deadlines':
+    elif text == 'Deadlines' or text == '/deadlines':
         token = get_token(chat_id)
         if token:
             show_deadlines(chat_id, token)

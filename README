@@ -1,0 +1,61 @@
+# Deadline Telegram Bot
+
+A Telegram bot designed to help students efficiently manage their deadlines and assignments, track grades, and calculate scholarship eligibility.
+
+## Table of Contents
+
+- [Features](#features)
+- [Demo](#demo)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Configuration](#configuration)
+- [Usage](#usage)
+- [Commands](#commands)
+- [License](#license)
+- [Contributing](#contributing)
+- [Acknowledgments](#acknowledgments)
+- [Contact](#contact)
+
+## Features
+
+- Track assignment deadlines and receive reminders.
+- Calculate required grades for scholarships based on midterm and end-term grades.
+- User-friendly interaction via Telegram.
+- Persistent data storage for user information and assignments.
+
+## Demo
+
+![Bot Demo](link-to-your-demo-image-or-video)
+
+## Getting Started
+
+### Prerequisites
+
+- Python 3.x installed on your machine.
+- A Telegram bot token (create a bot using [BotFather](https://core.telegram.org/bots#botfather)).
+- Required Python packages (listed in `requirements.txt`).
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/Jamsh1d05/deadline_tele_bot.git
+   cd deadline_tele_bot
+   pip install -r requirements.txt
+
+
+### Commands
+
+    /start: Initialize the bot and set up your account.
+    /add_assignment: Add a new assignment and its due date.
+    /check_deadlines: View upcoming assignment deadlines.
+    /calculate_scholarship: Calculate the grades needed for scholarships.
+    /help: Show available commands and usage instructions.
+
+### Contact
+    Email: j_alimzhanov05@mail.ru
+    Telegram : @expl0itE4gle
+
+
+### This project is licensed under the  GNU GENERAL PUBLIC LICENSE. See the LICENSE file for details.

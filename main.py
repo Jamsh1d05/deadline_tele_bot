@@ -1,5 +1,6 @@
 import telebot
 from telebot import types
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import requests
 from datetime import datetime
 from dotenv import load_dotenv
@@ -144,7 +145,12 @@ def main_menu(message):
     if message.chat.type == 'private':
         global menu_btn
         menu_btn = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        menu_btn.add(types.KeyboardButton('Deadlines'), types.KeyboardButton('Calculator'), types.KeyboardButton('👤Profile'), types.KeyboardButton('🔑Admin'))
+        menu_btn.add(
+            types.KeyboardButton('Deadlines'),
+            types.KeyboardButton('Calculator'), 
+            types.KeyboardButton('👤Profile'), 
+            types.KeyboardButton('🔑Admin')
+            )        
         bot.send_message(message.chat.id, 'Choose an action', reply_markup=menu_btn)
     else:
         bot.send_message(message.chat.id, 'Bot buttons are only available in private chat.')
@@ -487,8 +493,17 @@ def handle_message(message):
         token = get_token(chat_id)
 
         if token:
-            bot.send_message(chat_id, f'Your stored token: {token}')
-            bot.send_message(chat_id, 'What would you like to do?', reply_markup=profile_options())
+            markup = InlineKeyboardMarkup()
+            token_button = InlineKeyboardButton(text=f"{token}", callback_data="token")
+            delete_button = InlineKeyboardButton(text="Delete", callback_data="delete_token_text")
+            modify_button = InlineKeyboardButton(text="Modify", callback_data="modify_token_text")
+            exit_button = InlineKeyboardButton(text="Exit", callback_data="exit")
+            
+            markup.add(token_button)
+            markup.add(delete_button, modify_button)
+            markup.add(exit_button)
+            
+            bot.send_message(chat_id, "What would you like to do with your token?", reply_markup=markup)
         else:
             bot.send_message(chat_id, 'No token found. Please provide a token first.')
     elif text == 'Deadlines' or text == '/deadlines':
@@ -509,7 +524,7 @@ def handle_callback_query(call):
         bot.send_message(chat_id, "Please provide your new token:")
         bot.register_next_step_handler(call.message, modify_token)
     elif call.data == "exit":
-        bot.send_message(chat_id, "You have exited the profile settings.")
+        bot.delete_message(call.message.chat.id, call.message.message_id)
         main_menu(call.message)
 
 # Polling to keep the bot running

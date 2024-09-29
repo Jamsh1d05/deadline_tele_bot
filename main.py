@@ -329,7 +329,7 @@ def calculate_scholarship(first_att, second_att, message):
 
     required_for_retake = max(50, (50 - current_grade) / 0.4)  
     required_for_scholarship = max(50, (70 - current_grade) / 0.4)  
-    required_for_high_scholarship = max(50, (90 - current_grade) / 0.4)
+    required_for_high_scholarship = max(0, (90 - current_grade) / 0.4)
     grade_if_100_final = current_grade + 0.4 * 100
 
     if required_for_high_scholarship > 100:
@@ -340,10 +340,9 @@ def calculate_scholarship(first_att, second_att, message):
     result_message = (
         f"1️⃣ Не получить RETAKE или FX (>50): {required_for_retake:.2f}%\n"
         f"2️⃣ Для сохранения стипендии (>70): {required_for_scholarship:.2f}%\n"
-        f"3️⃣ Для повышенной стипендии (>90): {high_scholarship_message:}\n"
+        f"3️⃣ Для повышенной стипендии (>90): {high_scholarship_message}\n"
         f"4️⃣ Ваша итоговая оценка {grade_if_100_final:.2f}% если вы получите 100% на Final Exam"
     )
-
     bot.send_message(message.chat.id, result_message)
 
 

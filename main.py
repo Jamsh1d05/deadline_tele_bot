@@ -6,12 +6,25 @@ from datetime import datetime
 from dotenv import load_dotenv
 import os
 import sqlite3
+import time
+import logging
 
 # Load environment variables
 load_dotenv()
 BOT_TOKEN = os.getenv('TEL_API_TOKEN')
 MOODLE_URL = os.getenv('REQUEST_URL')
 ADMIN_ID = int(os.getenv('ADMIN_ID'))
+
+
+logging.basicConfig(level=logging.INFO)
+def start_bot():
+    try:
+        bot.polling(none_stop=True) 
+    except Exception as e:
+        logging.error(f"Error occurred: {e}")
+        logging.info("Restarting bot...")
+        time.sleep(5) 
+        start_bot()
 
 # Initialize bot
 bot = telebot.TeleBot(BOT_TOKEN)
@@ -98,7 +111,7 @@ def is_user_registered(chat_id):
     conn.close()
     return user is not None
 
-def get_all_user_ids():
+def get_users_id():
     conn = sqlite3.connect('users.db')
     cursor = conn.cursor()
     
@@ -131,6 +144,7 @@ def store_group_chat_id(chat_id):
         ''', (chat_id,))
         conn.commit()
         print(f"Group chat ID {chat_id} stored successfully.")
+        
     except sqlite3.IntegrityError:
         print(f"Group chat ID {chat_id} already exists in the database.")
     except Exception as e:
@@ -353,8 +367,6 @@ def calculate_scholarship(first_att, second_att, message):
 
 
 
-
-
 # Profile options
 def profile_options():
     markup = types.InlineKeyboardMarkup()
@@ -370,8 +382,8 @@ def adm_btn(message):
     adm_btn.add(types.KeyboardButton('Users data'), types.KeyboardButton('Broadcast Message'), types.KeyboardButton('Exit'))
     bot.send_message(message.chat.id, 'Choose an action', reply_markup=adm_btn)
 
-# Telegram Handlers
 
+# Telegram Handlers
 @bot.message_handler(commands=['start'])
 def start(message):
     chat_id = message.chat.id
@@ -379,29 +391,94 @@ def start(message):
         main_menu(message)
     else:
         text = "[here](https://moodle.astanait.edu.kz/user/managetoken.php)"
-        bot.send_message(chat_id, f"Welcome! Please provide your Moodle token. You can get it {text}:", parse_mode='MarkdownV2')
-        main_menu(message)
+        bot.send_message(chat_id, f"Welcome\\! Please provide your Moodle token You can get it {text}:", parse_mode='MarkdownV2')
 
 
 
+def broadcast_btn(message):
+    brd_btn = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    brd_btn.add(types.KeyboardButton('Induvidual chats'),types.KeyboardButton('Group chats'),types.KeyboardButton('Exit'))
+    bot.send_message(message.chat.id, 'Choose an action', reply_markup=brd_btn)
 
-def send_broadcast_message(message):
+
+def send_broadcast_for_group(message):
     all_ids = get_all_group_chat_ids() 
     message_text = message.text
 
+    if message_text.lower() == "exit":
+        bot.send_message(message.chat.id, "Broadcast canceled. Returning to main menu.", reply_markup=types.ReplyKeyboardRemove())
+        main_menu(message)
+
+
     for chat_id in all_ids:
-        try:
+        try:    
             bot.send_message(chat_id, message_text) 
         except Exception as e:
             print(f"Failed to send message to {chat_id}: {e}")
     
     bot.send_message(message.chat.id, "Broadcast message sent successfully!")
+    broadcast_btn(message)
+
+def send_broadcast_for_private_chats(message):
+    all_ids = get_users_id()
+    message_text = message.text
+
+    if message_text.lower() == "exit":
+        bot.send_message(message.chat.id, "Broadcast canceled. Returning to main menu.", reply_markup=types.ReplyKeyboardRemove())
+        main_menu(message)
+
+
+    for chat_id in all_ids:
+        try:
+            bot.send_message(chat_id, message_text)
+        except Exception as e :
+            bot.send_message(message.chat.id , f"Failed to send a message to {chat_id}: {e}")
+
+    bot.send_message(message.chat.id, "Broadcast message sent successfully!")
+    broadcast_btn(message)
+
+
+def process_group_chat_message(message):
+    if message.text.lower() == 'exit':
+        adm_btn(message)  
+        bot.send_message(message.chat.id, "Canceled")
+    else:
+        send_broadcast_for_group(message)
+
+
+
+def process_private_chat_message(message):
+    if message.text.lower() == 'exit':
+        adm_btn(message)  
+        bot.send_message(message.chat.id, "Canceled")
+    else:
+        send_broadcast_for_private_chats(message)
 
 
 @bot.message_handler(func=lambda message: message.text == 'Broadcast Message', content_types=['text'])
 def handle_broadcast(message):
-    msg = bot.send_message(message.chat.id, "Please enter the message you want to broadcast:")
-    bot.register_next_step_handler(msg, send_broadcast_message)
+    broadcast_btn(message)
+
+
+@bot.message_handler(func=lambda message: message.text == 'Group chats', content_types=['text'])
+def group_chat(message):
+    ex_btn = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    ex_btn.add(types.InlineKeyboardButton('Exit'))    
+    msg = bot.send_message(message.chat.id, "Enter your message: ", reply_markup=ex_btn)
+    bot.register_next_step_handler(msg, process_group_chat_message)
+
+
+@bot.message_handler(func=lambda message: message.text == 'Induvidual chats', content_types=['text'])
+def private_chat(message):
+    ex_btn = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    ex_btn.add(types.InlineKeyboardButton('Exit'))
+    msg = bot.send_message(message.chat.id, "Enter your message: ", reply_markup=ex_btn)
+    bot.register_next_step_handler(msg, process_private_chat_message)
+
+
+@bot.message_handler(func=lambda message: message.text == 'Exit')
+def private_chat(message):
+    main_menu(message)
 
 
 
@@ -427,7 +504,7 @@ def get_update(message):
         if menu_btn is None:
             bot.send_message(message.chat.id, 'Menu button is not yet initialized.')
         else:
-            bot.send_message(message.chat.id, 'Updates installed successfully!', reply_markup=menu_btn)
+            bot.send_message(message.chat.id, 'No updates available!')
     else:
         bot.send_message(message.chat.id, 'Run the /update command in private chat!')
 
@@ -527,5 +604,6 @@ def handle_callback_query(call):
         bot.delete_message(call.message.chat.id, call.message.message_id)
         main_menu(call.message)
 
-# Polling to keep the bot running
-bot.polling(non_stop=True)
+# Polling the bot
+if __name__ == "__main__":
+    start_bot()

@@ -284,7 +284,7 @@ def show_deadlines(chat_id, token):
                             time_left = time_remaining(due_date)
                             upcoming_assignments_by_course[course_name].append({
                                 'name': assignment['name'],
-                                'due_date': datetime.fromtimestamp(due_date).strftime('%d-%m-%Y %H:%M:%S'),
+                                'due_date': datetime.fromtimestamp(due_date).strftime('%d/%m | %H:%M'),
                                 'time_remaining': time_left
                             })
 

@@ -2,12 +2,13 @@ import telebot
 from telebot import types
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime
 from dotenv import load_dotenv
 import os
 import sqlite3
 import time
 import logging
+import pytz
 
 # Load environment variables
 load_dotenv()
@@ -234,28 +235,22 @@ def get_assignments(token, course_id):
         print(f"Error retrieving assignments: {e}")
         return {}
 
+#Calculation of of the remaining time 
+ASTANA_TZ = pytz.timezone('Asia/Almaty')  # Astana timezone
 def time_remaining(due_date):
-    due_date_obj = datetime.utcfromtimestamp(due_date) + timedelta(hours=5)
+    due_date_obj = datetime.fromtimestamp(due_date, ASTANA_TZ)
     
-    current_time_kz = datetime.now() + timedelta(hours=5) 
-
-    remaining_time = due_date_obj - current_time_kz
+    remaining_time = due_date_obj - datetime.now(ASTANA_TZ)
     
     remaining_days = remaining_time.days
     remaining_seconds = remaining_time.seconds
-    remaining_hours = remaining_seconds // 3600
+    remaining_hours = (remaining_seconds // 3600)
     remaining_minutes = (remaining_seconds % 3600) // 60
 
     if remaining_days < 1:
         return f"{remaining_hours} hours, {remaining_minutes} minutes"
     
     return f"{remaining_days} days, {remaining_hours} hours, {remaining_minutes} minutes"
-
-
-def kz_time(utc_timestamp):
-    utc_time = datetime.utcfromtimestamp(utc_timestamp)
-    kz_time = utc_time + timedelta(hours=5)
-    return kz_time.strftime('%d-%m | %H:%M')
 
 #Show the deadlines
 def show_deadlines(chat_id, token):
@@ -269,7 +264,7 @@ def show_deadlines(chat_id, token):
         bot.send_message(chat_id, "No courses found.")
         return
 
-    current_timestamp = int(datetime.now().timestamp()) + 5 * 3600 
+    current_timestamp = int(datetime.now(ASTANA_TZ).timestamp())
     upcoming_assignments_by_course = {}
 
     for course in courses:
@@ -287,13 +282,15 @@ def show_deadlines(chat_id, token):
                         due_date = assignment['duedate']
                         assignment_name = assignment['name'].lower()
 
-                    if due_date >= current_timestamp and not any(term in assignment_name for term in ['midterm', 'endterm']):
-                        time_left = time_remaining(due_date)
-                        upcoming_assignments_by_course[course_name].append({
-                            'name': assignment['name'],
-                            'due_date': kz_time(due_date),  
-                            'time_remaining': time_left
-                        })
+                        if due_date >= current_timestamp and not any(term in assignment_name for term in ['midterm', 'endterm']):
+                            time_left = time_remaining(due_date)
+                            due_date_display = datetime.fromtimestamp(due_date, ASTANA_TZ).strftime('%d/%m | %H:%M')
+                            upcoming_assignments_by_course[course_name].append({
+                                'name': assignment['name'],
+                                'due_date': due_date_display,
+                                'time_remaining': time_left
+                            })
+
     message = ""
     course_index = 1 
     for course_name, assignments in upcoming_assignments_by_course.items():

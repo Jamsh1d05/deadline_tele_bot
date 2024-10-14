@@ -8,7 +8,6 @@ import os
 import sqlite3
 import time
 import logging
-import pytz
 
 # Load environment variables
 load_dotenv()
@@ -236,15 +235,14 @@ def get_assignments(token, course_id):
         return {}
 
 #Calculation of of the remaining time 
-ASTANA_TZ = pytz.timezone('Asia/Almaty')  # Astana timezone
 def time_remaining(due_date):
-    due_date_obj = datetime.fromtimestamp(due_date, ASTANA_TZ)
+    due_date_obj = datetime.fromtimestamp(due_date)
     
-    remaining_time = due_date_obj - datetime.now(ASTANA_TZ)
+    remaining_time = due_date_obj - datetime.now()
     
     remaining_days = remaining_time.days
     remaining_seconds = remaining_time.seconds
-    remaining_hours = (remaining_seconds // 3600)
+    remaining_hours = remaining_seconds // 3600
     remaining_minutes = (remaining_seconds % 3600) // 60
 
     if remaining_days < 1:
@@ -264,7 +262,7 @@ def show_deadlines(chat_id, token):
         bot.send_message(chat_id, "No courses found.")
         return
 
-    current_timestamp = int(datetime.now(ASTANA_TZ).timestamp())
+    current_timestamp = int(datetime.now().timestamp())
     upcoming_assignments_by_course = {}
 
     for course in courses:
@@ -284,10 +282,9 @@ def show_deadlines(chat_id, token):
 
                         if due_date >= current_timestamp and not any(term in assignment_name for term in ['midterm', 'endterm']):
                             time_left = time_remaining(due_date)
-                            due_date_display = datetime.fromtimestamp(due_date, ASTANA_TZ).strftime('%d/%m | %H:%M')
                             upcoming_assignments_by_course[course_name].append({
                                 'name': assignment['name'],
-                                'due_date': due_date_display,
+                                'due_date': datetime.fromtimestamp(due_date).strftime('%d/%m | %H:%M'),
                                 'time_remaining': time_left
                             })
 

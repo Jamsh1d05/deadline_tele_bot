@@ -253,7 +253,7 @@ def time_remaining(due_date):
 
 def kz_time(utc_timestamp):
     utc_time = datetime.utcfromtimestamp(utc_timestamp)
-    kz_time = utc_time + timedelta(hours=6)
+    kz_time = utc_time + timedelta(hours=5)
     return kz_time.strftime('%d-%m | %H:%M')
 
 #Show the deadlines

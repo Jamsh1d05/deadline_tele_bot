@@ -2,7 +2,7 @@ import telebot
 from telebot import types
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import os
 import sqlite3
@@ -250,6 +250,12 @@ def time_remaining(due_date):
     
     return f"{remaining_days} days, {remaining_hours} hours, {remaining_minutes} minutes"
 
+
+def kz_time(utc_timestamp):
+    utc_time = datetime.utcfromtimestamp(utc_timestamp)
+    kz_time = utc_time + timedelta(hours=6)
+    return kz_time.strftime('%d-%m | %H:%M')
+
 #Show the deadlines
 def show_deadlines(chat_id, token):
     user_id = verify_security_key(token)
@@ -280,14 +286,13 @@ def show_deadlines(chat_id, token):
                         due_date = assignment['duedate']
                         assignment_name = assignment['name'].lower()
 
-                        if due_date >= current_timestamp and not any(term in assignment_name for term in ['midterm', 'endterm']):
-                            time_left = time_remaining(due_date)
-                            upcoming_assignments_by_course[course_name].append({
-                                'name': assignment['name'],
-                                'due_date': datetime.utcfromtimestamp(due_date).strftime('%d-%m | %H:%M UTC'),
-                                'time_remaining': time_left
-                            })
-
+                    if due_date >= current_timestamp and not any(term in assignment_name for term in ['midterm', 'endterm']):
+                        time_left = time_remaining(due_date)
+                        upcoming_assignments_by_course[course_name].append({
+                            'name': assignment['name'],
+                            'due_date': kz_time(due_date),  
+                            'time_remaining': time_left
+                        })
     message = ""
     course_index = 1 
     for course_name, assignments in upcoming_assignments_by_course.items():

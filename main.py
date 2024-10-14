@@ -236,8 +236,9 @@ def get_assignments(token, course_id):
 
 def time_remaining(due_date):
     due_date_obj = datetime.utcfromtimestamp(due_date) + timedelta(hours=5)
-    current_time_kz = datetime.now() + timedelta(hours=5) 
     
+    current_time_kz = datetime.now() + timedelta(hours=5) 
+
     remaining_time = due_date_obj - current_time_kz
     
     remaining_days = remaining_time.days
@@ -268,7 +269,7 @@ def show_deadlines(chat_id, token):
         bot.send_message(chat_id, "No courses found.")
         return
 
-    current_timestamp = int(datetime.now().timestamp())
+    current_timestamp = int(datetime.now().timestamp()) + 5 * 3600 
     upcoming_assignments_by_course = {}
 
     for course in courses:

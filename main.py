@@ -234,11 +234,11 @@ def get_assignments(token, course_id):
         print(f"Error retrieving assignments: {e}")
         return {}
 
-#Calculation of of the remaining time 
 def time_remaining(due_date):
-    due_date_obj = datetime.fromtimestamp(due_date)
+    due_date_obj = datetime.utcfromtimestamp(due_date) + timedelta(hours=5)
+    current_time_kz = datetime.now() + timedelta(hours=5) 
     
-    remaining_time = due_date_obj - datetime.now()
+    remaining_time = due_date_obj - current_time_kz
     
     remaining_days = remaining_time.days
     remaining_seconds = remaining_time.seconds

@@ -610,5 +610,7 @@ def handle_callback_query(call):
         main_menu(call.message)
 
 # Polling the bot
-if __name__ == "__main__":
-    start_bot()
+async def start_polling():
+    await bot.polling(non_stop=True)
+
+asyncio.run(start_polling())

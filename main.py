@@ -541,7 +541,7 @@ def send_users_data(message):
 
 
 @bot.message_handler(func=lambda message: True)
-async def handle_message(message):
+def handle_message(message):
     chat_id = message.chat.id
     text = message.text
 
@@ -552,7 +552,7 @@ async def handle_message(message):
             store_group_chat_id(log_id)
             user_token = get_token(message.from_user.id)
             if user_token:
-                await show_deadlines(message.chat.id, token)
+                asyncio.run(show_deadlines(message.chat.id, token))
             else:
                 text = "[here](https://moodle.astanait.edu.kz/user/managetoken.php)"
                 bot.send_message(chat_id, f'Please provide a token in a private chat first, you can get it {text}', parse_mode='MarkdownV2')
@@ -592,7 +592,7 @@ async def handle_message(message):
     elif text == 'Deadlines' or text == '/deadlines':
         token = get_token(chat_id)
         if token:
-            await show_deadlines(message.chat.id, token)
+            asyncio.run(show_deadlines(message.chat.id, token))
         else:
             bot.send_message(message.chat.id, "Please provide a valid token.")
 

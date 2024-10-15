@@ -191,22 +191,23 @@ def calc_options(message):
     bot.send_message(message.chat.id, info_message, reply_markup=calc_btn)
     
 # Verify Moodle token
-def verify_security_key(token):
+async def verify_security_key(token):
     params = {
         'wstoken': token,
         'wsfunction': 'core_webservice_get_site_info',
         'moodlewsrestformat': 'json'
     }
-    try:
-        response = requests.get(MOODLE_URL, params=params)
-        response.raise_for_status()
-        data = response.json()
-        if 'userid' in data:
-            return data['userid']
-        return None
-    except requests.exceptions.RequestException as e:
-        print(f"Error verifying token: {e}")
-        return None
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(MOODLE_URL, params=params) as response:
+                response.raise_for_status()
+                data = await response.json()
+                if 'userid' in data:
+                    return data['userid']
+                return None
+        except aiohttp.ClientError as e:
+            print(f"Error verifying token: {e}")
+            return None
 
 # Get deadlines and assignments
 async def get_courses(session, token, user_id):

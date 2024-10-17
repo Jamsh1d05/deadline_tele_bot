@@ -21,14 +21,6 @@ ADMIN_ID = int(os.getenv('ADMIN_ID'))
 loop = asyncio.get_event_loop()
 
 logging.basicConfig(level=logging.INFO)
-def start_bot():
-    try:
-        bot.polling(none_stop=True) 
-    except Exception as e:
-        logging.error(f"Error occurred: {e}")
-        logging.info("Restarting bot...")
-        time.sleep(5) 
-        start_bot()
 
 
 # Initialize bot
@@ -191,44 +183,53 @@ def calc_options(message):
     bot.send_message(message.chat.id, info_message, reply_markup=calc_btn)
     
 # Verify Moodle token
-async def verify_security_key(token):
+def verify_security_key(token):
     params = {
         'wstoken': token,
         'wsfunction': 'core_webservice_get_site_info',
         'moodlewsrestformat': 'json'
     }
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(MOODLE_URL, params=params) as response:
-                response.raise_for_status()
-                data = await response.json()
-                if 'userid' in data:
-                    return data['userid']
-                return None
-        except aiohttp.ClientError as e:
-            print(f"Error verifying token: {e}")
-            return None
+    try:
+        response = requests.get(MOODLE_URL, params=params)
+        response.raise_for_status()
+        data = response.json()
+        if 'userid' in data:
+            return data['userid']
+        return None
+    except requests.exceptions.RequestException as e:
+        print(f"Error verifying token: {e}")
+        return None
 
 # Get deadlines and assignments
-async def get_courses(session, token, user_id):
+async def get_courses(token, user_id):
     params = {
         'wstoken': token,
         'wsfunction': 'core_enrol_get_users_courses',
         'moodlewsrestformat': 'json',
         'userid': user_id
     }
-    async with session.get(MOODLE_URL, params=params) as response:
-        return await response.json()
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(MOODLE_URL, params=params) as response:
+                return await response.json()
+        except aiohttp.ClientError as e:
+            print(f"Error retrieving courses: {e}")
+            return []
 
-async def get_assignments(session, token, course_id):
+async def get_assignments(token, course_id):
     params = {
         'wstoken': token,
         'wsfunction': 'mod_assign_get_assignments',
         'courseids[0]': course_id,
         'moodlewsrestformat': 'json'
     }
-    async with session.get(MOODLE_URL, params=params) as response:
-        return await response.json()
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(MOODLE_URL, params=params) as response:
+                return await response.json()
+        except aiohttp.ClientError as e:
+            print(f"Error retrieving assignments: {e}")
+            return {}
 
 
 #Calculation of of the remaining time 
@@ -251,14 +252,14 @@ def time_remaining(due_date):
 async def show_deadlines(chat_id, token):
     user_id = verify_security_key(token)
     if user_id is None:
-        bot.send_message(chat_id, "Invalid token or unable to retrieve user ID.")
+        bot.send_message(chat_id, "Can not connect to moodle host!")
         return
     
     # Start a session to use connection pooling
     async with aiohttp.ClientSession() as session:
-        courses = await get_courses(session, token, user_id)
+        courses = await get_courses(token, user_id)
         if not courses:
-            bot.send_message(chat_id, "No courses found.")
+            await bot.send_message(chat_id, "No courses found.")
             return
 
         current_timestamp = int(datetime.now().timestamp())
@@ -269,7 +270,7 @@ async def show_deadlines(chat_id, token):
         for course in courses:
             course_id = course['id']
             course_name = course['fullname']
-            task = asyncio.ensure_future(get_assignments(session, token, course_id))
+            task = asyncio.ensure_future(get_assignments(token, course_id))
             tasks.append((task, course_name))
 
         results = await asyncio.gather(*[task[0] for task in tasks])
@@ -292,8 +293,6 @@ async def show_deadlines(chat_id, token):
                                     'due_date': datetime.fromtimestamp(due_date).strftime('%d-%m | %H:%M'),
                                     'time_remaining': time_left
                                 })
-
-        # Format and send the message with deadlines
         message = ""
         course_index = 1
         for course_name, assignments in upcoming_assignments_by_course.items():
@@ -611,8 +610,4 @@ def handle_callback_query(call):
         main_menu(call.message)
 
 # Polling the bot
-async def start_polling():
-    await bot.polling(non_stop=True)
-
-if __name__ == "__main__":
-    asyncio.run(start_polling())
+bot.polling(non_stop=True)

@@ -1,10 +1,8 @@
-import aiohttp
-import asyncio
 import telebot
 from telebot import types
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import os
 import sqlite3
@@ -17,11 +15,16 @@ BOT_TOKEN = os.getenv('TEL_API_TOKEN')
 MOODLE_URL = os.getenv('REQUEST_URL')
 ADMIN_ID = int(os.getenv('ADMIN_ID'))
 
-#Loop event
-loop = asyncio.get_event_loop()
 
 logging.basicConfig(level=logging.INFO)
-
+def start_bot():
+    try:
+        bot.polling(none_stop=True) 
+    except Exception as e:
+        logging.error(f"Error occurred: {e}")
+        logging.info("Restarting bot...")
+        time.sleep(5) 
+        start_bot()
 
 # Initialize bot
 bot = telebot.TeleBot(BOT_TOKEN)
@@ -201,41 +204,40 @@ def verify_security_key(token):
         return None
 
 # Get deadlines and assignments
-async def get_courses(token, user_id):
+def get_courses(token, user_id):
     params = {
         'wstoken': token,
         'wsfunction': 'core_enrol_get_users_courses',
         'moodlewsrestformat': 'json',
         'userid': user_id
     }
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(MOODLE_URL, params=params) as response:
-                return await response.json()
-        except aiohttp.ClientError as e:
-            print(f"Error retrieving courses: {e}")
-            return []
+    try:
+        response = requests.get(MOODLE_URL, params=params)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Error retrieving courses: {e}")
+        return []
 
-async def get_assignments(token, course_id):
+def get_assignments(token, course_id):
     params = {
         'wstoken': token,
         'wsfunction': 'mod_assign_get_assignments',
         'courseids[0]': course_id,
         'moodlewsrestformat': 'json'
     }
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(MOODLE_URL, params=params) as response:
-                return await response.json()
-        except aiohttp.ClientError as e:
-            print(f"Error retrieving assignments: {e}")
-            return {}
-
+    try:
+        response = requests.get(MOODLE_URL, params=params)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Error retrieving assignments: {e}")
+        return {}
 
 #Calculation of of the remaining time 
 def time_remaining(due_date):
     due_date_obj = datetime.fromtimestamp(due_date)
-    
+
     remaining_time = due_date_obj - datetime.now()
     
     remaining_days = remaining_time.days
@@ -248,67 +250,73 @@ def time_remaining(due_date):
     
     return f"{remaining_days} days, {remaining_hours} hours, {remaining_minutes} minutes"
 
+
+def kz_time(utc_timestamp):
+    # Convert UTC timestamp to datetime
+    utc_time = datetime.utcfromtimestamp(utc_timestamp)
+    
+    # Convert to Kazakhstan time by adding 6 hours
+    kz_time = utc_time + timedelta(hours=6)
+    
+    # Return the formatted Kazakhstan time
+    return kz_time.strftime('%d-%m | %H:%M KZ Time')
+
+
 #Show the deadlines
-async def show_deadlines(chat_id, token):
+def show_deadlines(chat_id, token):
     user_id = verify_security_key(token)
     if user_id is None:
-        bot.send_message(chat_id, "Can not connect to moodle host!")
+        bot.send_message(chat_id, "Invalid token or unable to retrieve user ID.")
         return
-    
-    # Start a session to use connection pooling
-    async with aiohttp.ClientSession() as session:
-        courses = await get_courses(token, user_id)
-        if not courses:
-            await bot.send_message(chat_id, "No courses found.")
-            return
 
-        current_timestamp = int(datetime.now().timestamp())
-        upcoming_assignments_by_course = {}
+    courses = get_courses(token, user_id)
+    if not courses:
+        bot.send_message(chat_id, "No courses found.")
+        return
 
-        tasks = []
+    current_timestamp = int(datetime.now().timestamp())
+    upcoming_assignments_by_course = {}
 
-        for course in courses:
-            course_id = course['id']
-            course_name = course['fullname']
-            task = asyncio.ensure_future(get_assignments(token, course_id))
-            tasks.append((task, course_name))
+    for course in courses:
+        course_id = course['id']
+        course_name = course['fullname']
+        assignments_data = get_assignments(token, course_id)
 
-        results = await asyncio.gather(*[task[0] for task in tasks])
+        if 'courses' in assignments_data:
+            if course_name not in upcoming_assignments_by_course:
+                upcoming_assignments_by_course[course_name] = []
 
-        for (result, course_name) in zip(results, [task[1] for task in tasks]):
-            if 'courses' in result:
-                if course_name not in upcoming_assignments_by_course:
-                    upcoming_assignments_by_course[course_name] = []
+            for course_assignments in assignments_data['courses']:
+                if 'assignments' in course_assignments:
+                    for assignment in course_assignments['assignments']:
+                        due_date = assignment['duedate']
+                        assignment_name = assignment['name'].lower()
 
-                for course_assignments in result['courses']:
-                    if 'assignments' in course_assignments:
-                        for assignment in course_assignments['assignments']:
-                            due_date = assignment['duedate']
-                            assignment_name = assignment['name'].lower()
 
-                            if due_date >= current_timestamp and not any(term in assignment_name for term in ['midterm', 'endterm']):
-                                time_left = time_remaining(due_date)
-                                upcoming_assignments_by_course[course_name].append({
-                                    'name': assignment['name'],
-                                    'due_date': datetime.fromtimestamp(due_date).strftime('%d-%m | %H:%M'),
-                                    'time_remaining': time_left
-                                })
-        message = ""
-        course_index = 1
-        for course_name, assignments in upcoming_assignments_by_course.items():
-            if assignments:
-                message += f"\n{course_index}. {course_name}\n"  
-                for assignment in assignments:
-                    message += f"   📝{assignment['name']}\n"
-                    message += f"   📅Due Date: {assignment['due_date']}\n"
-                    message += f"   ⏳Time Remaining: {assignment['time_remaining']}\n"
-                course_index += 1
+                    if due_date >= current_timestamp and not any(term in assignment_name for term in ['midterm', 'endterm']):
+                        time_left = time_remaining(due_date)
+                        upcoming_assignments_by_course[course_name].append({
+                            'name': assignment['name'],
+                            'due_date': kz_time(due_date),  
+                            'time_remaining': time_left
+                        })
+    message = ""
+    course_index = 1 
+    for course_name, assignments in upcoming_assignments_by_course.items():
+        if assignments:
+            message += f"\n{course_index}. {course_name}\n"  
+            message += "\n"
+            for assignment in assignments:
+                message += f"   📝{assignment['name']}\n"
+                message += f"   📅Due Date: {assignment['due_date']}\n"
+                message += f"   ⏳Time Remaining: {assignment['time_remaining']}\n"
+            course_index += 1
 
-        if message:
-            bot.send_message(chat_id, message)
-        else:
-            bot.send_message(chat_id, "No upcoming assignments found.")
-
+    if message:
+        bot.send_message(chat_id, message)
+    else:
+        bot.send_message(chat_id, "No upcoming assignments found.")
+        
 
 def scholarship_calculator(message):
     bot.send_message(message.chat.id, "ℹ️Введите оценку за Register Mid-Term:")
@@ -551,12 +559,11 @@ def handle_message(message):
             store_group_chat_id(log_id)
             user_token = get_token(message.from_user.id)
             if user_token:
-                asyncio.run(show_deadlines(message.chat.id, token))
+                show_deadlines(chat_id, token)
             else:
                 text = "[here](https://moodle.astanait.edu.kz/user/managetoken.php)"
                 bot.send_message(chat_id, f'Please provide a token in a private chat first, you can get it {text}', parse_mode='MarkdownV2')
-        return 
-
+        return
 
 
     if len(text) == 32: 
@@ -591,9 +598,9 @@ def handle_message(message):
     elif text == 'Deadlines' or text == '/deadlines':
         token = get_token(chat_id)
         if token:
-            asyncio.run(show_deadlines(message.chat.id, token))
+            show_deadlines(chat_id, token)
         else:
-            bot.send_message(message.chat.id, "Please provide a valid token.")
+            bot.send_message(chat_id, 'Please provide a token to see deadlines.')
 
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -610,4 +617,6 @@ def handle_callback_query(call):
         main_menu(call.message)
 
 # Polling the bot
-bot.polling(non_stop=True)
+if __name__ == "__main__":
+    start_bot()
+

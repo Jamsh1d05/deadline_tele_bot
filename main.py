@@ -398,12 +398,6 @@ async def scholarship_calculator(message: Message):
     await main_menu(message)
 
 
-
-
-
-
-
-
 # Handler for the first attestation
 @router.message(ScholarshipStates.waiting_for_first_attestation)
 async def get_first_attestation(message: Message, state: FSMContext):

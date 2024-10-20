@@ -209,14 +209,6 @@ async def broadcast_btn(message):
     await message.answer("Choose an action:", reply_markup=builder.as_markup(resize_keyboard=True))
 
 
-
-def kz_time(utc_timestamp):
-    utc_time = datetime.utcfromtimestamp(utc_timestamp)
-    kz_time = utc_time + timedelta(hours=5)
-
-    return kz_time.strftime('%d-%m | %H:%M')
-
-
 async def show_deadlines(message, token):
     user_id = await verify_security_key(token)
     courses = await get_courses(token, user_id)
@@ -258,7 +250,7 @@ async def show_deadlines(message, token):
 
                     upcoming_assignments[course_name].append({
                         'name': assignment['name'],
-                        'due_date': kz_time(due_date),
+                        'due_date': due_date,
                         'days_left': days_left,
                         'hours_left': hours_left,
                         'minutes_left': minutes_left,
@@ -475,7 +467,7 @@ async def calculate_scholarship(first_att: float, second_att: float, message: Me
 def get_keyboard():
     buttons = [
         [
-            types.InlineKeyboardButton(text="⚠Delete⚠", callback_data="token_delete")
+            types.InlineKeyboardButton(text="⚠ Delete ⚠", callback_data="token_delete")
         ],
         [types.InlineKeyboardButton(text="Exit", callback_data="token_exit")]
     ]

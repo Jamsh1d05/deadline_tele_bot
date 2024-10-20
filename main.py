@@ -2,7 +2,7 @@ import aiohttp
 import aiosqlite
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import os
 
@@ -209,6 +209,14 @@ async def broadcast_btn(message):
     await message.answer("Choose an action:", reply_markup=builder.as_markup(resize_keyboard=True))
 
 
+
+def kz_time(utc_timestamp):
+    utc_time = datetime.utcfromtimestamp(utc_timestamp)
+    kz_time = utc_time + timedelta(hours=5)
+
+    return kz_time.strftime('%d-%m | %H:%M')
+
+
 async def show_deadlines(message, token):
     user_id = await verify_security_key(token)
     courses = await get_courses(token, user_id)
@@ -250,7 +258,7 @@ async def show_deadlines(message, token):
 
                     upcoming_assignments[course_name].append({
                         'name': assignment['name'],
-                        'due_date': due_date,
+                        'due_date': kz_time(due_date),
                         'days_left': days_left,
                         'hours_left': hours_left,
                         'minutes_left': minutes_left,
@@ -612,7 +620,6 @@ async def handle_broadcast_message(message: types.Message, state: FSMContext):
     
     await state.clear()
     
-
 
 
 @router.message(lambda message: message.text == "Group chats")

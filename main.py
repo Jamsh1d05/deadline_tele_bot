@@ -475,7 +475,7 @@ async def calculate_scholarship(first_att: float, second_att: float, message: Me
 def get_keyboard():
     buttons = [
         [
-            types.InlineKeyboardButton(text="Delete", callback_data="token_delete")
+            types.InlineKeyboardButton(text="⚠Delete⚠", callback_data="token_delete")
         ],
         [types.InlineKeyboardButton(text="Exit", callback_data="token_exit")]
     ]

@@ -288,8 +288,22 @@ async def send_welcome(message: Message, state: FSMContext):
     if await is_user_registered(chat_id):
         await main_menu(message)
     else:
-        text = "[here](https://moodle.astanait.edu.kz/user/managetoken.php)"
-        await bot.send_message(chat_id, f"Welcome\\! Please provide your Moodle token You can get it {text}:", parse_mode='MarkdownV2')
+        
+        image_path = 'images/login_help.jpg' 
+        welcome_image = FSInputFile(image_path)
+        
+        text = "[HERE](https://moodle.astanait.edu.kz/user/managetoken.php)"
+        
+
+        sent_message = await bot.send_photo(
+            chat_id, 
+            photo=welcome_image, 
+            caption=f"Welcome\\! Please provide your Moodle Mobile Web Service token\\.\n You can get it {text}", 
+            parse_mode='MarkdownV2'
+        )
+
+        await state.update_data(welcome_message_id=sent_message.message_id)
+        
 
     token = await get_token(message.from_user.id)
 
@@ -301,12 +315,23 @@ async def send_welcome(message: Message, state: FSMContext):
 @router.message(UserState.waiting_for_token)
 async def handle_message(message: Message, state: FSMContext):
     chat_id = message.chat.id
+    message_id = message.message_id
     text = message.text
 
     if await verify_security_key(text):
         user = message.from_user
         first_name = user.first_name or "unknown"
         await store_token(chat_id, first_name, text)
+
+
+        data = await state.get_data()
+        welcome_message_id = data.get('welcome_message_id')
+        if welcome_message_id:
+            await bot.delete_message(chat_id, welcome_message_id)
+
+
+        await bot.delete_message(chat_id, message_id)
+
         
         await message.answer("Thank you! Your token has been registered.")
         await main_menu(message)
@@ -498,10 +523,16 @@ async def callbacks_num(callback: types.CallbackQuery):
 
 
 @router.message(lambda message: message.text == "👤Profile")
-async def profile_options(message):
+async def profile_options(message, state: FSMContext):
         chat_id = message.chat.id
         token = await get_token(chat_id)
-        await message.answer(f"Your token: \n\n {token}",reply_markup=get_keyboard())
+
+        if not token :
+            await bot.send_message(chat_id , 'Provide your token first!')
+            await state.set_state(UserState.waiting_for_token)
+            
+        else:
+            await message.answer(f"Your token: \n\n {token}",reply_markup=get_keyboard())
          
 
 
@@ -584,7 +615,6 @@ async def send_users_data(message):
             await bot.send_document(chat_id, file)
     else:
         await message.answer('Users data not found!')
-
 
 
 

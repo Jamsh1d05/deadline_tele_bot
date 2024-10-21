@@ -1,10 +1,11 @@
-# Deadline Telegram Bot
+# AssignBot Pro
 
 A Telegram bot designed to help students efficiently manage their deadlines and assignments, track grades, and calculate scholarship eligibility.
 
 ## Table of Contents
 
 - [Features](#features)
+- [Admin Panel](#admin-panel)
 - [Demo](#demo)
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
@@ -24,9 +25,20 @@ A Telegram bot designed to help students efficiently manage their deadlines and 
 - User-friendly interaction via Telegram.
 - Persistent data storage for user information and assignments.
 
+## Admin Panel
+
+AssignBot Pro features an **Admin Panel** for bot owners with the ability to:
+
+- **Broadcast messages to individual users**: Send personalized or general notifications directly to individual users of the bot.
+- **Broadcast messages to group chats**: Notify all members of group chats that use the bot.
+- **Manage updates**: Provide updates on new bot features, maintenance, or other important announcements.
+
+The admin panel allows the bot owner to manage the interaction efficiently and communicate directly with the users. Only the bot owner has access to the admin panel.
+
+
 ## Demo
 
-![Bot Demo](link-to-your-demo-image-or-video)
+![Bot Demo](#)
 
 ## Getting Started
 
@@ -48,13 +60,14 @@ A Telegram bot designed to help students efficiently manage their deadlines and 
 ### Commands
 
     /start: Initialize the bot and set up your account.
-    /add_assignment: Add a new assignment and its due date.
-    /check_deadlines: View upcoming assignment deadlines.
-    /calculate_scholarship: Calculate the grades needed for scholarships.
+    /deadlines: View upcoming assignment deadlinesin group chats.
+    /update: Get the latest update
+    Deadline button : Get the deadldines in the private chat of the bot.
+    Calculator button : Calculate the grades needed for Scholarships and GPA .
     /help: Show available commands and usage instructions.
 
 ### Contact
-    Email: j_alimzhanov05@mail.ru
+    Email: jamshidalimzhanov@gmail.com
     Telegram : @expl0itE4gle
 
 

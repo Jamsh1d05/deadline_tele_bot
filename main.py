@@ -348,9 +348,7 @@ async def handle_message(message: Message):
     chat_id = message.chat.id
     text = message.text
 
-    if message.chat.type in ['group', 'supergroup']:
-            log_id = message.chat.id
-            await store_group_chat_id(log_id) 
+    if message.chat.type in ['group', 'supergroup']: 
             user_token = await get_token(message.from_user.id)
             if user_token:
                 await show_deadlines(chat_id, user_token)

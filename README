@@ -5,6 +5,7 @@ A Telegram bot designed to help students efficiently manage their deadlines and 
 ## Table of Contents
 
 - [Features](#features)
+- [Admin Panel](#admin-panel)
 - [Demo](#demo)
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
@@ -23,6 +24,17 @@ A Telegram bot designed to help students efficiently manage their deadlines and 
 - Calculate required grades for scholarships based on midterm and end-term grades.
 - User-friendly interaction via Telegram.
 - Persistent data storage for user information and assignments.
+
+## Admin Panel
+
+AssignBot Pro features an **Admin Panel** for bot owners with the ability to:
+
+- **Broadcast messages to individual users**: Send personalized or general notifications directly to individual users of the bot.
+- **Broadcast messages to group chats**: Notify all members of group chats that use the bot.
+- **Manage updates**: Provide updates on new bot features, maintenance, or other important announcements.
+
+The admin panel allows the bot owner to manage the interaction efficiently and communicate directly with the users. Only the bot owner has access to the admin panel.
+
 
 ## Demo
 

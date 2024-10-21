@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 import os
 
 from aiogram import Bot, Dispatcher, Router,types, F
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup,InlineKeyboardButton,ReplyKeyboardRemove
+from aiogram.types import FSInputFile, Message, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup,InlineKeyboardButton,ReplyKeyboardRemove
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -580,9 +580,11 @@ async def send_users_data(message):
     
     if os.path.exists(file_path):
         with open(file_path, 'rb') as file:
-            bot.send_document(chat_id, file)
+            file = FSInputFile(file_path)
+            await bot.send_document(chat_id, file)
     else:
         await message.answer('Users data not found!')
+
 
 
 

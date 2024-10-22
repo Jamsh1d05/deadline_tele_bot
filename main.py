@@ -239,7 +239,7 @@ async def show_deadlines(message, token):
 
                     if due_date >= current_timestamp:
 
-                        due_date = datetime.fromtimestamp(due_date)
+                        due_date = datetime.fromtimestamp(due_date) + timedelta(hours=2)
                         current_time = datetime.fromtimestamp(current_timestamp)
                         
                         time_left = due_date - current_time

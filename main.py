@@ -342,7 +342,6 @@ async def handle_message(message: Message, state: FSMContext):
         await message.answer("Invalid token. Please try again.")
 
 
-
 @router.message(Command("deadlines"))
 async def handle_message(message: Message):
     chat_id = message.chat.id
@@ -353,12 +352,8 @@ async def handle_message(message: Message):
             if user_token:
                 await show_deadlines(chat_id, user_token)
             else:
-                text = "[here](https://moodle.astanait.edu.kz/user/managetoken.php)"
-                await message.answer(f'Please provide a Moodle "Mobile Web Service" token in a private chat of the bot first. You can get it {text}', parse_mode='MarkdownV2')
+                await message.answer(f'Please register with your "Moodle Mobile Web Service" token in the bot first.')
     
-
-
-
 
 @router.message(lambda message: message.text == "Deadlines")
 async def handle_deadlines(message: Message, state: FSMContext):
@@ -377,8 +372,6 @@ async def handle_deadlines(message: Message, state: FSMContext):
     else:
         await message.answer('Please provide a token first!')
         await state.set_state(UserState.waiting_for_token)
-        
-           
 
 
 @router.message(F.text == "Calculator")
@@ -402,6 +395,7 @@ async def calculator_menu(message: Message):
     builder.add(KeyboardButton(text="Exit"))
     await message.answer(info_message, reply_markup=builder.as_markup(resize_keyboard=True))
 
+
 @router.message(lambda message: message.text == "Scholarship")
 async def scholarship_calculator(message: Message, state: FSMContext):
     await bot.send_message(message.chat.id, "ℹ️Введите оценку за Register Mid-Term:")
@@ -412,8 +406,6 @@ async def scholarship_calculator(message: Message, state: FSMContext):
 @router.message(lambda message: message.text == "GPA")
 async def scholarship_calculator(message: Message, state: FSMContext):
     await message.answer("Will be added soon!")
-
-
 
 
 @router.message(lambda message: message.text == "Exit")
@@ -441,13 +433,14 @@ async def get_first_attestation(message: Message, state: FSMContext):
     except ValueError:
         await bot.send_message(message.chat.id, "Неверный ввод. Пожалуйста, введите действительную оценку за Register Mid-Term.")
     
+
 # Handler for the second attestation
 @router.message(ScholarshipStates.waiting_for_second_attestation)
 async def get_second_attestation(message: Message, state: FSMContext):
     if message.text.lower() == 'exit':
         await main_menu(message, state)
         return
-
+    
     try:
         second_att = float(message.text)
         if second_att < 0 or second_att > 100:

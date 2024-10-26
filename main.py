@@ -162,18 +162,35 @@ async def get_assignments(token, course_id):
             logging.error(f"Error retrieving assignments: {e}")
             return {}
 
-"""
-def time_remaining(due_date):
-    due_date_obj = datetime.fromtimestamp(due_date)
-    remaining_time = due_date_obj - datetime.now()
-    remaining_days = remaining_time.days
-    remaining_seconds = remaining_time.seconds
-    remaining_hours = remaining_seconds // 3600
-    remaining_minutes = (remaining_seconds % 3600) // 60
-    return f"{remaining_days} days, {remaining_hours} hours, {remaining_minutes} minutes" if remaining_days > 0 else f"{remaining_hours} hours, {remaining_minutes} minutes"
 
-"""
+#Retrieving grades 
+async def get_grades(token, user_id, course_id):
+    params = {
+        'wstoken': token,
+        'moodlewsrestformat': 'json',
+        'wsfunction': 'gradereport_user_get_grade_items',
+        'courseid': course_id,
+        'userid': user_id
+    }
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(MOODLE_URL, params=params) as resp:
+                if resp.status == 200:
+                    try:
+                        response = await resp.json()
+                        #print(f"Response for course {course_id}: {response}")  # Debugging: Print API response
+                        return response
+                    except aiohttp.ContentTypeError:
+                        print(f"Failed to decode JSON response for course {course_id}")
+                else:
+                    print(f"Request failed for course {course_id} with status: {resp.status}")
+    except Exception as e:
+        print(f"An error occurred while requesting grades for course {course_id}: {str(e)}")
+    return None
+
+
     
+
 # Bot states for calculator
 class CalculatorStates(StatesGroup):
     midterm = State()
@@ -182,8 +199,8 @@ class CalculatorStates(StatesGroup):
 #Menu buttons
 async def main_menu(message):
     builder = ReplyKeyboardBuilder()
-    builder.row(KeyboardButton(text="Deadlines"),KeyboardButton(text="Calculator"))
-    builder.row(KeyboardButton(text="👤Profile"))
+    builder.row(KeyboardButton(text="Deadlines"),KeyboardButton(text="Grades"))
+    builder.row(KeyboardButton(text="Calculator"), KeyboardButton(text="👤Profile"))
 
     if message.chat.id == ADMIN_ID:
         builder.add(KeyboardButton(text="🔑Admin"))
@@ -209,6 +226,109 @@ async def broadcast_btn(message):
     await message.answer("Choose an action:", reply_markup=builder.as_markup(resize_keyboard=True))
 
 
+
+
+#Showing grades
+async def show_grades(token, message, course_id: str):
+    if not token:
+        await message.answer("Token is missing or invalid. Please provide a valid token.")
+        return
+    
+    user_id = await verify_security_key(token)
+    if not user_id:
+        await message.answer("Failed to verify the token. Please try again.")
+        return
+
+    courses = await get_courses(token, user_id)
+    if not courses:
+        await message.answer("No courses found.")
+        return
+
+    current_time = datetime.now().timestamp()
+    active_courses = [
+        course for course in courses
+        if 'startdate' in course and 'enddate' in course
+        and course['startdate'] <= current_time <= course['enddate']
+    ]
+
+    if not active_courses:
+        await message.answer("No active courses found.")
+        return
+
+
+    selected_course = next((course for course in active_courses if str(course['id']) == course_id), None)
+    if not selected_course:
+        await message.answer(f"No course found with ID {course_id}.")
+        return
+
+    message_parts = []
+
+    grades_data = await get_grades(token, user_id, selected_course['id'])
+
+    if 'usergrades' in grades_data and grades_data['usergrades']:
+            grade_items = grades_data['usergrades'][0]['gradeitems']
+            if grade_items:
+                message_parts = [f"📚<i><b>{selected_course['fullname'].split(' | ')[0]}:</b></i>\n"]
+                for grade_item in grade_items:
+                    item_name = grade_item.get('itemname', 'Unknown Item')
+                    grade = grade_item.get('gradeformatted', 'No grade')
+
+
+                    if grade in ["0.00"]:
+                        continue
+
+                    message_parts.append(f"📝 {item_name}  →  <b>{grade}</b>")
+            else:
+                message_parts.append("No grades available for this course.")
+    else:
+            message_parts.append("No grades available for this course.")
+
+    message_text = "\n".join(message_parts) if message_parts else "No grades available!"
+
+    buttons = [
+        [types.InlineKeyboardButton(text="Back", callback_data="back_to_courses")]
+    ]
+
+    back_btn = types.InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    await message.edit_text(message_text, reply_markup=back_btn, parse_mode='HTML')
+
+
+
+#Showing courses in inline_btn
+async def show_courses(token, message):
+    user_id = await verify_security_key(token)
+    if not user_id:
+        await message.answer("Failed to verify the token. Please try again.")
+        return
+
+    courses = await get_courses(token, user_id)
+
+
+    current_time = datetime.now().timestamp()
+    active_courses = [
+        course for course in courses
+        if 'startdate' in course and 'enddate' in course
+        and course['startdate'] <= current_time <= course['enddate']
+    ]
+
+    if not active_courses:
+        await message.answer("No courses found.")
+        return
+
+    buttons = [
+        [types.InlineKeyboardButton(text=course['fullname'].split(' | ')[0], callback_data=f"course_{course['id']}")]
+        for course in active_courses
+    ]
+
+    buttons.append([types.InlineKeyboardButton(text='Exit', callback_data='exit_courses')])
+    keyboard = types.InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    await message.answer("Please select a course to view grades:", reply_markup=keyboard)
+
+
+
+#Showing deadlines 
 async def show_deadlines(message, token):
     user_id = await verify_security_key(token)
     courses = await get_courses(token, user_id)
@@ -342,6 +462,75 @@ async def handle_message(message: Message, state: FSMContext):
         await message.answer("Invalid token. Please try again.")
 
 
+
+#Show corses , callback handler           
+@router.callback_query(F.data.startswith("course_"))
+async def handle_course_selection(callback: types.CallbackQuery):
+    course_id = callback.data.split("_")[1]
+    token = await get_token(callback.message.chat.id) 
+    await callback.answer()
+
+    await show_grades(token, callback.message, course_id)
+
+
+
+#Back to course callback handler
+@router.callback_query(F.data == "back_to_courses")
+async def back_to_courses(callback: types.CallbackQuery):
+    token = await get_token(callback.message.chat.id)
+    user_id = await verify_security_key(token)
+    
+    if not token:
+        await callback.message.answer("Token is missing or invalid. Please provide a valid token.")
+        return
+
+    courses = await get_courses(token, user_id)
+    
+    current_time = datetime.now().timestamp()
+    active_courses = [
+        course for course in courses
+        if 'startdate' in course and 'enddate' in course
+        and course['startdate'] <= current_time <= course['enddate']
+    ]
+
+    if not active_courses:
+        await callback.message.edit_text("No active courses found.")
+        return
+    
+    buttons = [
+        [types.InlineKeyboardButton(text=course['fullname'].split(' | ')[0], callback_data=f"course_{course['id']}")]
+        for course in active_courses
+    ]
+    
+    buttons.append([types.InlineKeyboardButton(text='Exit', callback_data='exit_courses')])
+    keyboard = types.InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    await callback.message.edit_text("Please select a course to view grades:", reply_markup=keyboard)
+
+
+#Exiting courses inline list
+@router.callback_query(F.data == "exit_courses")
+async def back_to_courses(callback: types.CallbackQuery):
+    chat_id = callback.message.chat.id
+    message_id = callback.message.message_id    
+
+    await bot.delete_message(chat_id, message_id)
+    await main_menu(callback.message) 
+
+
+
+#Grades handler
+@router.message(lambda message: message.text == "Grades")
+async def handle_deadlines(message: Message):
+    user_token = await get_token(message.from_user.id)
+    if user_token:
+        await show_courses(user_token, message)
+    else:
+        await message.answer("Please register with your Moodle token using /start to view your grades.")
+
+
+
+#Deadlines handler
 @router.message(Command("deadlines"))
 async def handle_message(message: Message):
     chat_id = message.chat.id
@@ -355,7 +544,7 @@ async def handle_message(message: Message):
                 await message.answer(f'Please register with your "Moodle Mobile Web Service" token in the bot first.')
     
 
-@router.message(lambda message: message.text == "Deadlines")
+@router.message(lambda message: message.text == "Deadlines" or message.text == '/deadlines')
 async def handle_deadlines(message: Message, state: FSMContext):
     token = await get_token(message.from_user.id)
     user_data = await state.get_data()
@@ -388,7 +577,6 @@ async def calculator_menu(message: Message):
     "Достаточно отправить оценку за Mid/End-Term."
 )
 
-
     builder = ReplyKeyboardBuilder()
     builder.add(KeyboardButton(text="GPA"))
     builder.add(KeyboardButton(text="Scholarship"))
@@ -409,7 +597,8 @@ async def scholarship_calculator(message: Message, state: FSMContext):
 
 
 @router.message(lambda message: message.text == "Exit")
-async def scholarship_calculator(message: Message):
+async def scholarship_calculator(message: Message,state: FSMContext):
+    await state.clear()
     await main_menu(message)
 
 
@@ -507,8 +696,8 @@ async def callbacks_num(callback: types.CallbackQuery):
 
         
     elif action == "exit":
-        await main_menu(callback.message)
         await bot.delete_message(chat_id, message_id)
+        await main_menu(callback.message)
 
     await callback.answer()
 
@@ -561,7 +750,7 @@ async def send_broadcast_for_private_chats(message):
         try:
             await bot.send_message(chat_id, message_text)
         except Exception as e :
-            await message.answer(message.chat.id , f"Failed to send a message to {chat_id}: {e}")
+            await message.answer(f"Failed to send a message to {chat_id}: {e}")
 
     await message.answer("Broadcast message sent successfully!")
     await broadcast_btn(message)

@@ -236,7 +236,7 @@ async def show_grades(token, message, course_id: str):
     
     user_id = await verify_security_key(token)
     if not user_id:
-        await message.answer("Failed to verify the token. Please try again.")
+        await message.answer("Failed to verify the token. Moodle is not responding.")
         return
 
     courses = await get_courses(token, user_id)
@@ -299,7 +299,7 @@ async def show_grades(token, message, course_id: str):
 async def show_courses(token, message):
     user_id = await verify_security_key(token)
     if not user_id:
-        await message.answer("Failed to verify the token. Please try again.")
+        await message.answer("Failed to verify the token. Moodle is not responding.")
         return
 
     courses = await get_courses(token, user_id)
@@ -459,7 +459,7 @@ async def handle_message(message: Message, state: FSMContext):
         await state.clear()
 
     else:
-        await message.answer("Invalid token. Please try again.")
+        await message.answer("Invalid token. Please try again later!")
 
 
 
@@ -557,7 +557,7 @@ async def handle_deadlines(message: Message, state: FSMContext):
         if user_id:
             await show_deadlines(chat_id, token)
         else:
-            await message.answer("Invalid token. Please provide a valid token.")
+            await message.answer("Moodle is not responding.")
     else:
         await message.answer('Please provide a token first!')
         await state.set_state(UserState.waiting_for_token)
